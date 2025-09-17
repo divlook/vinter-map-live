@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="seaGradient" x1="50%" x2="50%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E4A74"/>
+      <stop offset="100%" stop-color="#082C47"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 바다 배경 -->
+  <rect x="0" y="0" width="32" height="32" rx="6" fill="url(#seaGradient)"/>
+
+  <!-- 지도 그리드 -->
+  <path d="M0 10h32M0 22h32M10 0v32M22 0v32" stroke="#2A6BA0" stroke-width="1" opacity="0.55"/>
+
+  <!-- 라이브 느낌 파형 -->
+  <g opacity="0.35">
+    <circle cx="16" cy="16" r="10" fill="none" stroke="#7DE2FF" stroke-width="1.5" />
+    <circle cx="16" cy="16" r="13" fill="none" stroke="#7DE2FF" stroke-width="1" stroke-dasharray="2 2" />
+  </g>
+
+  <!-- 섬: 모래 + 숲 -->
+  <circle cx="16" cy="16" r="7" fill="#F5D48A" stroke="#C7A45B" stroke-width="0.8"/>
+  <circle cx="16" cy="16" r="4" fill="#3A8F5B" stroke="#22663E" stroke-width="0.6"/>
+
+  <!-- 숲 하이라이트 -->
+  <circle cx="14.8" cy="14.8" r="1.3" fill="#72C98A" opacity="0.8"/>
+</svg>

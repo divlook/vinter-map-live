@@ -1,0 +1,49 @@
+import { readFile, writeFile } from 'node:fs/promises'
+
+const rootDir = new URL('../', import.meta.url)
+
+const loadJson = async (relativePath) => {
+  const fileUrl = new URL(relativePath, rootDir)
+  const content = await readFile(fileUrl, 'utf8')
+  return { fileUrl, data: JSON.parse(content) }
+}
+
+const main = async () => {
+  const { data: pkg } = await loadJson('package.json')
+
+  let manifestPayload
+
+  try {
+    manifestPayload = await loadJson('dist/manifest.json')
+  } catch (error) {
+    if ('code' in error && error.code === 'ENOENT') {
+      console.warn(
+        '[sync-manifest-version] dist/manifest.json not found, skipping',
+      )
+      return
+    }
+
+    throw error
+  }
+
+  const manifest = manifestPayload.data
+
+  if (manifest.version === pkg.version) {
+    console.log('[sync-manifest-version] version already up to date')
+    return
+  }
+
+  manifest.version = pkg.version
+
+  await writeFile(
+    manifestPayload.fileUrl,
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    'utf8',
+  )
+
+  console.log(
+    `[sync-manifest-version] manifest version updated to ${manifest.version}`,
+  )
+}
+
+await main()
