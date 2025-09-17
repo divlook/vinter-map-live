@@ -21,7 +21,7 @@
       ]
     }
   ],
-  "description": "롱빈터 지도 좌표를 자동 인식해 vinternote.com/map 에서 캐릭터 위치를 실시간으로 이동시켜 주는 크롬 확장 프로그램입니다.",
+  "description": "롱빈터(Longvinter) 지도의 좌표를 자동으로 읽어 현재 위치를 맞춰 주는 크롬 확장 프로그램입니다.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
