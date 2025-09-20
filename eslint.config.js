@@ -19,6 +19,9 @@ export default defineConfig(
     plugins: {
       '@typescript-eslint': tseslint.plugin,
     },
+    rules: {
+      '@typescript-eslint/ban-ts-comment': 0,
+    },
   },
   eslintPluginPrettierRecommended,
 )

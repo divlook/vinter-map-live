@@ -1,7 +1,11 @@
+// @ts-check
 import { readFile, writeFile } from 'node:fs/promises'
 
 const rootDir = new URL('../', import.meta.url)
 
+/**
+ * @param {string | URL} relativePath
+ */
 const loadJson = async (relativePath) => {
   const fileUrl = new URL(relativePath, rootDir)
   const content = await readFile(fileUrl, 'utf8')
@@ -16,7 +20,12 @@ const main = async () => {
   try {
     manifestPayload = await loadJson('dist/manifest.json')
   } catch (error) {
-    if ('code' in error && error.code === 'ENOENT') {
+    if (
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      error.code === 'ENOENT'
+    ) {
       console.warn(
         '[sync-manifest-version] dist/manifest.json not found, skipping',
       )
