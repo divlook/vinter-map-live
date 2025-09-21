@@ -77,7 +77,7 @@ const setMonitoringState = (isActive: boolean) => {
 
 const handleTrackEnded = () => {
   console.log('[Monitor] 화면 공유 트랙 종료 이벤트 감지')
-  void stopMonitoring()
+  stopMonitoring()
 }
 
 const ensureOCRReady = async () => {
@@ -342,7 +342,7 @@ function scheduleNextCapture(delay: number) {
 
   captureTimeoutId = window.setTimeout(() => {
     captureTimeoutId = null
-    void runCaptureLoop()
+    runCaptureLoop()
   }, delay)
 }
 
@@ -482,14 +482,14 @@ const moveMap = (coordinates: string | null) => {
   }
 
   if (!lastSubmittedCoordinates) {
-    void submitCoordinates(parsedCoordinates)
+    submitCoordinates(parsedCoordinates)
     return
   }
 
   if (
     isWithinCoordinateTolerance(lastSubmittedCoordinates, parsedCoordinates)
   ) {
-    void submitCoordinates(parsedCoordinates)
+    submitCoordinates(parsedCoordinates)
     return
   }
 
@@ -556,12 +556,12 @@ chrome.runtime.onMessage.addListener((payload: Action) => {
   switch (payload.type) {
     case 'start-monitoring': {
       console.log('[Monitor] 메시지 수신: start-monitoring')
-      void startMonitoring()
+      startMonitoring()
       break
     }
     case 'stop-monitoring': {
       console.log('[Monitor] 메시지 수신: stop-monitoring')
-      void stopMonitoring()
+      stopMonitoring()
       break
     }
   }
