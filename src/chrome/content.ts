@@ -25,6 +25,20 @@ const IMAGE_FILTER_OPTIONS = {
   gamma: 0.8,
   threshold: 180,
 }
+const COORDINATE_TOLERANCE = 10
+const REMOTE_COORDINATE_CONFIRMATION_COUNT = 3
+
+type ParsedCoordinates = {
+  yValue: number
+  yUnit: string
+  xValue: number
+  xUnit: string
+}
+
+type CoordinateOutlierCandidate = {
+  coordinates: ParsedCoordinates
+  count: number
+}
 
 /** 활성 상태: 캡처 루프와 OCR 처리가 정상 동작하고 있음을 의미 */
 let isMonitoringActive = false
@@ -32,6 +46,10 @@ let isMonitoringActive = false
 let isMonitoringStarting = false
 /** 캡처 중복 실행을 방지하기 위한 상태 플래그 */
 let isCaptureInProgress = false
+/** 마지막으로 입력된 좌표를 기록해 허용 오차 내 변동만 반영한다. */
+let lastSubmittedCoordinates: ParsedCoordinates | null = null
+/** 허용 오차를 초과하지만 반복 감지되는 좌표 후보를 임시 저장한다. */
+let pendingOutlierCoordinates: CoordinateOutlierCandidate | null = null
 
 /** 모니터링 상태를 동기화해 content/background 간 일관성을 유지한다. */
 const setMonitoringState = (isActive: boolean) => {
@@ -206,6 +224,8 @@ const cleanupMonitoring = async () => {
   await cleanupOCR()
 
   detachStreamFromVideo()
+  lastSubmittedCoordinates = null
+  pendingOutlierCoordinates = null
 }
 
 const startMonitoring = async () => {
@@ -348,12 +368,54 @@ const parseCoordinates = async (
   return coordinates
 }
 
-/**
- * @param coordinates ex) 37N/127E
- */
-const moveMap = (coordinates: string | null) => {
-  if (!coordinates) return
+const parseCoordinateString = (
+  coordinates: string,
+): ParsedCoordinates | null => {
+  const [rawY, rawX] = coordinates.split('/')
+  if (!rawY || !rawX) return null
 
+  const parsePart = (part: string) => {
+    const numericPart = part.replace(/[^\d]/g, '')
+    const unitPart = part.replace(/[\d]/g, '').toUpperCase()
+
+    if (!numericPart || !unitPart) return null
+
+    return {
+      value: getAdjustedInputValue(numericPart),
+      unit: unitPart,
+    }
+  }
+
+  const yPart = parsePart(rawY)
+  const xPart = parsePart(rawX)
+
+  if (!yPart || !xPart) return null
+
+  return {
+    yValue: yPart.value,
+    yUnit: yPart.unit,
+    xValue: xPart.value,
+    xUnit: xPart.unit,
+  }
+}
+
+const isWithinCoordinateTolerance = (
+  previous: ParsedCoordinates,
+  next: ParsedCoordinates,
+) => {
+  if (previous.yUnit !== next.yUnit || previous.xUnit !== next.xUnit) {
+    return false
+  }
+
+  const isYWithinTolerance =
+    Math.abs(previous.yValue - next.yValue) <= COORDINATE_TOLERANCE
+  const isXWithinTolerance =
+    Math.abs(previous.xValue - next.xValue) <= COORDINATE_TOLERANCE
+
+  return isYWithinTolerance && isXWithinTolerance
+}
+
+const submitCoordinates = (parsedCoordinates: ParsedCoordinates) => {
   const form = document.querySelector('.map-search form')
   const yInput = (document.getElementById('YValue') as HTMLInputElement) || null
   const yUnit = (document.getElementById('Yunit') as HTMLSelectElement) || null
@@ -362,23 +424,88 @@ const moveMap = (coordinates: string | null) => {
   const submitButton =
     (form?.querySelector('button[type="submit"]') as HTMLButtonElement) || null
 
-  if (!form || !yInput || !yUnit || !xInput || !xunit || !submitButton) return
+  if (!form || !yInput || !yUnit || !xInput || !xunit || !submitButton) {
+    console.warn('[Monitor] 좌표 제출 요소를 찾지 못해 입력을 건너뜀')
+    return false
+  }
 
-  const [yInputValue, yUnitValue, xInputValue, xUnitValue] = coordinates
-    .split('/')
-    .map((part) => [
-      getAdjustedInputValue(part.replace(/[\D]/g, '')),
-      part.replace(/[\d]/g, ''),
-    ])
-    .flat()
-
-  if (!yUnitValue || !xUnitValue) return
-
-  yInput.value = String(yInputValue)
-  yUnit.value = String(yUnitValue)
-  xInput.value = String(xInputValue)
-  xunit.value = String(xUnitValue)
+  yInput.value = String(parsedCoordinates.yValue)
+  yUnit.value = parsedCoordinates.yUnit
+  xInput.value = String(parsedCoordinates.xValue)
+  xunit.value = parsedCoordinates.xUnit
   submitButton.click()
+
+  lastSubmittedCoordinates = parsedCoordinates
+  pendingOutlierCoordinates = null
+
+  return true
+}
+
+/**
+ * @param coordinates ex) 37N/127E
+ */
+const moveMap = (coordinates: string | null) => {
+  if (!coordinates) return
+
+  const parsedCoordinates = parseCoordinateString(coordinates.trim())
+
+  if (!parsedCoordinates) {
+    console.warn('[Monitor] 좌표 문자열 파싱 실패', coordinates)
+    return
+  }
+
+  if (!lastSubmittedCoordinates) {
+    void submitCoordinates(parsedCoordinates)
+    return
+  }
+
+  if (
+    isWithinCoordinateTolerance(lastSubmittedCoordinates, parsedCoordinates)
+  ) {
+    void submitCoordinates(parsedCoordinates)
+    return
+  }
+
+  const isContinuingOutlier =
+    pendingOutlierCoordinates &&
+    isWithinCoordinateTolerance(
+      pendingOutlierCoordinates.coordinates,
+      parsedCoordinates,
+    )
+
+  const nextOutlierCandidate: CoordinateOutlierCandidate = isContinuingOutlier
+    ? {
+        coordinates: parsedCoordinates,
+        count: pendingOutlierCoordinates!.count + 1,
+      }
+    : {
+        coordinates: parsedCoordinates,
+        count: 1,
+      }
+
+  if (!isContinuingOutlier) {
+    console.log('[Monitor] 원거리 좌표 후보 감지', parsedCoordinates)
+  }
+
+  pendingOutlierCoordinates = nextOutlierCandidate
+
+  if (nextOutlierCandidate.count >= REMOTE_COORDINATE_CONFIRMATION_COUNT) {
+    if (submitCoordinates(nextOutlierCandidate.coordinates)) {
+      console.log('[Monitor] 원거리 좌표 확정으로 지도 이동', {
+        coordinates: nextOutlierCandidate.coordinates,
+        count: nextOutlierCandidate.count,
+      })
+    }
+
+    return
+  }
+
+  if (nextOutlierCandidate.count > 1) {
+    console.log('[Monitor] 원거리 좌표 후보 반복 감지', {
+      count: nextOutlierCandidate.count,
+      coordinates: nextOutlierCandidate.coordinates,
+    })
+  }
 }
 
 const getAdjustedInputValue = (input: string): number => {
