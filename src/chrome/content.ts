@@ -19,7 +19,7 @@ const OCR_PARAMETERS: Partial<WorkerParams> = {
   tessedit_char_whitelist: '0123456789/NSEW',
   tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
 }
-const OCR_UPSCALE_FACTOR = 2
+const OCR_UPSCALE_FACTOR = 3
 const IMAGE_FILTER_OPTIONS = {
   contrast: 1.3,
   brightness: 1.1,
