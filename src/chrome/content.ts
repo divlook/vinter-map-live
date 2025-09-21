@@ -13,7 +13,7 @@ const upscaleCtx = upscaleCanvas.getContext('2d')!
 const grayscaleCanvas = document.createElement('canvas')
 const grayscaleCtx = grayscaleCanvas.getContext('2d')!
 
-const CAPTURE_INTERVAL_MS = 1000
+const CAPTURE_INTERVAL_MS = 3000
 const OCR_WORKER_COUNT = 1
 const OCR_PARAMETERS: Partial<WorkerParams> = {
   tessedit_char_whitelist: '0123456789/NSEW',
