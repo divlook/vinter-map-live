@@ -2,7 +2,7 @@ import { action, type Action } from '@/libs/action'
 import Tesseract, { createScheduler, type WorkerParams } from 'tesseract.js'
 
 const video = document.createElement('video')
-let captureIntervalId: ReturnType<typeof setInterval> | null = null
+let captureTimeoutId: ReturnType<typeof setTimeout> | null = null
 let scheduler: ReturnType<typeof createScheduler> | null = null
 let ocrInitializationPromise: Promise<void> | null = null
 
@@ -13,7 +13,8 @@ const upscaleCtx = upscaleCanvas.getContext('2d')!
 const grayscaleCanvas = document.createElement('canvas')
 const grayscaleCtx = grayscaleCanvas.getContext('2d')!
 
-const OCR_WORKER_COUNT = 2
+const CAPTURE_INTERVAL_MS = 1000
+const OCR_WORKER_COUNT = 1
 const OCR_PARAMETERS: Partial<WorkerParams> = {
   tessedit_char_whitelist: '0123456789/NSEW',
   tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
@@ -215,10 +216,10 @@ const detachStreamFromVideo = () => {
 }
 
 const cleanupMonitoring = async () => {
-  if (captureIntervalId !== null) {
+  if (captureTimeoutId !== null) {
     console.log('[Monitor] 캡처 타이머 중지')
-    clearInterval(captureIntervalId)
-    captureIntervalId = null
+    clearTimeout(captureTimeoutId)
+    captureTimeoutId = null
   }
 
   await cleanupOCR()
@@ -229,11 +230,7 @@ const cleanupMonitoring = async () => {
 }
 
 const startMonitoring = async () => {
-  if (
-    isMonitoringStarting ||
-    isMonitoringActive ||
-    captureIntervalId !== null
-  ) {
+  if (isMonitoringStarting || isMonitoringActive || captureTimeoutId !== null) {
     console.warn('[Monitor] 이미 모니터링 시작이 진행 중이거나 활성 상태입니다')
     return
   }
@@ -252,12 +249,10 @@ const startMonitoring = async () => {
 
     await ensureOCRReady()
 
-    captureIntervalId = window.setInterval(() => {
-      void captureScreen()
-    }, 1000)
+    setMonitoringState(true)
+    scheduleNextCapture(0)
     console.log('[Monitor] 캡처 타이머 시작')
 
-    setMonitoringState(true)
     isMonitoringStarting = false
   } catch (error) {
     console.error('[Monitor] 모니터링 시작 실패', error)
@@ -275,8 +270,8 @@ const stopMonitoring = async () => {
   if (!isMonitoringActive && !video.srcObject) return
 
   console.log('[Monitor] 모니터링 중지 요청')
-  await cleanupMonitoring()
   setMonitoringState(false)
+  await cleanupMonitoring()
   isMonitoringStarting = false
 }
 
@@ -317,6 +312,38 @@ const captureScreen = async () => {
   } finally {
     isCaptureInProgress = false
   }
+}
+
+const runCaptureLoop = async (): Promise<void> => {
+  if (!isMonitoringActive) return
+
+  const startTime = performance.now()
+
+  try {
+    await captureScreen()
+  } catch (error) {
+    console.error('[Monitor] 캡처 루프 실행 중 오류', error)
+  } finally {
+    const elapsed = performance.now() - startTime
+
+    if (isMonitoringActive) {
+      const nextDelay = Math.max(0, CAPTURE_INTERVAL_MS - elapsed)
+      scheduleNextCapture(nextDelay)
+    }
+  }
+}
+
+function scheduleNextCapture(delay: number) {
+  if (!isMonitoringActive) return
+
+  if (captureTimeoutId !== null) {
+    clearTimeout(captureTimeoutId)
+  }
+
+  captureTimeoutId = window.setTimeout(() => {
+    captureTimeoutId = null
+    void runCaptureLoop()
+  }, delay)
 }
 
 const parseCoordinates = async (
