@@ -5,13 +5,19 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "build:background": "tsc -b && vite build -c vite.config.background.ts",
-    "build:content": "tsc -b && vite build -c vite.config.content.ts",
     "build": "npm run build:content && npm run build:background",
+    "build:background": "tsc -b && BUILD_MODE=prod vite build --mode production -c vite.config.background.ts",
+    "build:content": "tsc -b && BUILD_MODE=prod vite build --mode production -c vite.config.content.ts",
+    "build:debug": "npm run build:debug:content && npm run build:debug:background",
+    "build:debug:background": "tsc -b && BUILD_MODE=debug vite build -c vite.config.background.ts",
+    "build:debug:content": "tsc -b && BUILD_MODE=debug vite build -c vite.config.content.ts",
     "lint": "eslint .",
-    "package:dist": "rm -f dist.zip && zip -qr dist.zip dist",
-    "postbuild": "npm run sync:manifest-version && npm run package:dist",
-    "sync:manifest-version": "node ./scripts/sync-manifest-version.js"
+    "package": "rm -f dist.zip && zip -qr dist.zip dist",
+    "package:debug": "rm -f dist-debug.zip && zip -qr dist-debug.zip dist-debug",
+    "postbuild": "npm run sync:manifest-version && npm run package",
+    "postbuild:debug": "npm run sync:manifest-version:debug && npm run package:debug",
+    "sync:manifest-version": "node ./scripts/sync-manifest-version.js",
+    "sync:manifest-version:debug": "node ./scripts/sync-manifest-version.js dist-debug"
   },
   "dependencies": {
     "tesseract.js": "^6.0.1"

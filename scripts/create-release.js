@@ -4,7 +4,8 @@ import fs from 'fs'
 import path from 'path'
 import process from 'process'
 
-const ASSET_FILE_NAME = 'dist.zip'
+const PROD_ASSET_FILE_NAME = 'dist.zip'
+const DEBUG_ASSET_FILE_NAME = 'dist-debug.zip'
 
 /**
  * @param {string} command
@@ -25,6 +26,11 @@ export default async (scope) => {
     const version = exec('npx git-cliff --bumped-version')
 
     exec(`npm version ${version}`)
+
+    // 두 가지 버전 빌드
+    exec(`npm run build`)
+    exec(`npm run build:debug`)
+
     exec(`git push origin`)
     exec(`git push origin --tags`)
 
@@ -37,12 +43,23 @@ export default async (scope) => {
       body: changelog,
     })
 
+    // Production 버전 업로드
     await github.rest.repos.uploadReleaseAsset({
       owner: context.repo.owner,
       repo: context.repo.repo,
       // @ts-ignore
-      data: fs.readFileSync(path.join(process.cwd(), ASSET_FILE_NAME)),
+      data: fs.readFileSync(path.join(process.cwd(), PROD_ASSET_FILE_NAME)),
       name: `vinter-map-live@${version}.zip`,
+      release_id: release.data.id,
+    })
+
+    // Debug 버전 업로드
+    await github.rest.repos.uploadReleaseAsset({
+      owner: context.repo.owner,
+      repo: context.repo.repo,
+      // @ts-ignore
+      data: fs.readFileSync(path.join(process.cwd(), DEBUG_ASSET_FILE_NAME)),
+      name: `vinter-map-live.debug@${version}.zip`,
       release_id: release.data.id,
     })
   } catch (error) {

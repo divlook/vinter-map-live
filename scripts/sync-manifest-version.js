@@ -1,5 +1,6 @@
 // @ts-check
 import { readFile, writeFile } from 'node:fs/promises'
+import process from 'node:process'
 
 const rootDir = new URL('../', import.meta.url)
 
@@ -15,10 +16,13 @@ const loadJson = async (relativePath) => {
 const main = async () => {
   const { data: pkg } = await loadJson('package.json')
 
+  // 명령행 인자로 디렉토리 지정 가능 (기본값: dist)
+  const distDir = process.argv[2] || 'dist'
+
   let manifestPayload
 
   try {
-    manifestPayload = await loadJson('dist/manifest.json')
+    manifestPayload = await loadJson(`${distDir}/manifest.json`)
   } catch (error) {
     if (
       error &&
@@ -27,7 +31,7 @@ const main = async () => {
       error.code === 'ENOENT'
     ) {
       console.warn(
-        '[sync-manifest-version] dist/manifest.json not found, skipping',
+        `[sync-manifest-version] ${distDir}/manifest.json not found, skipping`,
       )
       return
     }
@@ -38,7 +42,7 @@ const main = async () => {
   const manifest = manifestPayload.data
 
   if (manifest.version === pkg.version) {
-    console.log('[sync-manifest-version] version already up to date')
+    console.log(`[sync-manifest-version] ${distDir} version already up to date`)
     return
   }
 
@@ -51,7 +55,7 @@ const main = async () => {
   )
 
   console.log(
-    `[sync-manifest-version] manifest version updated to ${manifest.version}`,
+    `[sync-manifest-version] ${distDir} manifest version updated to ${manifest.version}`,
   )
 }
 

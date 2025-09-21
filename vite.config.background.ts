@@ -1,9 +1,10 @@
 import { defineConfig, mergeConfig } from 'vite'
 import baseConfig from './vite.config'
 
-export default mergeConfig(
-  baseConfig,
-  defineConfig({
+export default defineConfig((env) => {
+  const base = baseConfig(env)
+
+  return mergeConfig(base, {
     build: {
       emptyOutDir: false,
       rollupOptions: {
@@ -18,5 +19,5 @@ export default mergeConfig(
         },
       },
     },
-  }),
-)
+  })
+})
