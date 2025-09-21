@@ -77,6 +77,9 @@ const setMonitoringState = (isActive: boolean) => {
 
 const handleTrackEnded = () => {
   console.log('[Monitor] 화면 공유 트랙 종료 이벤트 감지')
+  /** 화면 공유 강제 종료 시에도 모든 상태를 완전히 초기화 */
+  isMonitoringStarting = false
+  isCaptureInProgress = false
   stopMonitoring()
 }
 
@@ -225,6 +228,9 @@ const cleanupMonitoring = async () => {
   await cleanupOCR()
 
   detachStreamFromVideo()
+
+  /** 캡처 진행 상태 초기화 */
+  isCaptureInProgress = false
   lastSubmittedCoordinates = null
   pendingOutlierCoordinates = null
 }
@@ -239,6 +245,8 @@ const startMonitoring = async () => {
 
   try {
     isMonitoringStarting = true
+    /** 시작 전 상태 초기화 */
+    isCaptureInProgress = false
     console.log('[Monitor] 모니터링 시작 시도')
     currentStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
@@ -262,6 +270,8 @@ const startMonitoring = async () => {
     await cleanupOCR()
     setMonitoringState(false)
     isMonitoringStarting = false
+    /** 실패 시에도 캡처 상태 초기화 */
+    isCaptureInProgress = false
     console.log('[Monitor] 모니터링 시작 실패로 리소스 정리 완료')
   }
 }
