@@ -5,7 +5,15 @@ import { useCallback, useEffect, useState } from 'react'
 
 export const App = () => {
   const [testImages, setTestImages] = useState<string[]>([])
-  const [imageResults, setImageResults] = useState<Record<string, string>>({})
+  const [imageResults, setImageResults] = useState<
+    Record<
+      string,
+      {
+        dataURL: string
+        result: string
+      }
+    >
+  >({})
 
   const initialize = useCallback(async () => {
     const testImages = await getTestImages()
@@ -42,7 +50,8 @@ export const App = () => {
           <ResultViewer
             key={index}
             imageUrl={imageUrl}
-            result={imageResults[imageUrl]}
+            parsedImageUrl={imageResults[imageUrl]?.dataURL}
+            result={imageResults[imageUrl]?.result}
           />
         ))}
       </div>
