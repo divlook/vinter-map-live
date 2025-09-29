@@ -1,32 +1,16 @@
 import { action, type Action } from '@/libs/action'
-import Tesseract, { createScheduler, type WorkerParams } from 'tesseract.js'
+import { CoordsParser } from '@/libs/coords-parser'
+import { ImageProcessor } from '@/libs/image-processor'
+import { logger } from '@/libs/logger'
+import type { ImageLike } from 'tesseract.js'
+
+const coordsParser = new CoordsParser()
 
 const video = document.createElement('video')
 let captureTimeoutId: ReturnType<typeof setTimeout> | null = null
-let scheduler: ReturnType<typeof createScheduler> | null = null
-let ocrInitializationPromise: Promise<void> | null = null
 
-const captureCanvas = document.createElement('canvas')
-const captureCtx = captureCanvas.getContext('2d')!
-const upscaleCanvas = document.createElement('canvas')
-const upscaleCtx = upscaleCanvas.getContext('2d')!
-const grayscaleCanvas = document.createElement('canvas')
-const grayscaleCtx = grayscaleCanvas.getContext('2d')!
-
-const CAPTURE_INTERVAL_MS = 3000
-const OCR_WORKER_COUNT = 1
-const OCR_PARAMETERS: Partial<WorkerParams> = {
-  tessedit_char_whitelist: '0123456789/NSEW',
-  tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
-}
-const OCR_UPSCALE_FACTOR = 3
-const IMAGE_FILTER_OPTIONS = {
-  contrast: 1.3,
-  brightness: 1.1,
-  gamma: 0.8,
-  threshold: 180,
-}
-const COORDINATE_TOLERANCE = 10
+const CAPTURE_INTERVAL_MS = 2000
+const COORDINATE_TOLERANCE = 20
 const REMOTE_COORDINATE_CONFIRMATION_COUNT = 3
 
 type ParsedCoordinates = {
@@ -55,9 +39,7 @@ let pendingOutlierCoordinates: CoordinateOutlierCandidate | null = null
 /** 모니터링 상태를 동기화해 content/background 간 일관성을 유지한다. */
 const setMonitoringState = (isActive: boolean) => {
   if (isMonitoringActive === isActive) {
-    console.log(
-      `[Monitor] 모니터링 상태 유지: ${isActive ? '활성화' : '비활성화'}`,
-    )
+    logger.log(`모니터링 상태 유지: ${isActive ? '활성화' : '비활성화'}`)
     return
   }
 
@@ -70,81 +52,15 @@ const setMonitoringState = (isActive: boolean) => {
     }),
   )
 
-  console.log(
-    `[Monitor] 모니터링 상태 전송: ${isActive ? '활성화' : '비활성화'}`,
-  )
+  logger.log(`모니터링 상태 전송: ${isActive ? '활성화' : '비활성화'}`)
 }
 
 const handleTrackEnded = () => {
-  console.log('[Monitor] 화면 공유 트랙 종료 이벤트 감지')
+  logger.log('화면 공유 트랙 종료 이벤트 감지')
   /** 화면 공유 강제 종료 시에도 모든 상태를 완전히 초기화 */
   isMonitoringStarting = false
   isCaptureInProgress = false
   stopMonitoring()
-}
-
-const ensureOCRReady = async () => {
-  if (scheduler) {
-    console.log('[Monitor] OCR 이미 준비 완료 상태')
-    return
-  }
-
-  if (!ocrInitializationPromise) {
-    console.log('[Monitor] OCR 초기화 시작')
-    ocrInitializationPromise = (async () => {
-      try {
-        scheduler = await createConfiguredScheduler()
-        console.log('[Monitor] OCR 초기화 완료')
-      } catch (error) {
-        console.error('[Monitor] OCR 초기화 실패', error)
-        throw error
-      } finally {
-        ocrInitializationPromise = null
-      }
-    })()
-  }
-
-  await ocrInitializationPromise
-}
-
-const cleanupOCR = async () => {
-  if (ocrInitializationPromise) {
-    try {
-      await ocrInitializationPromise
-    } catch (error) {
-      console.error('[Monitor] 클린업 전에 OCR 초기화 실패', error)
-    }
-  }
-
-  if (scheduler) {
-    console.log('[Monitor] 스케줄러 종료')
-    await scheduler.terminate()
-    scheduler = null
-  }
-}
-
-const createConfiguredScheduler = async () => {
-  console.log('[Monitor] 워커 준비 시작')
-  const nextScheduler = createScheduler()
-
-  try {
-    await Promise.all(
-      Array.from({ length: OCR_WORKER_COUNT }).map(async () => {
-        const worker = await Tesseract.createWorker(
-          'eng',
-          Tesseract.OEM.TESSERACT_LSTM_COMBINED,
-        )
-        await worker.setParameters(OCR_PARAMETERS)
-        await nextScheduler.addWorker(worker)
-        console.log('[Monitor] 워커 등록 완료')
-      }),
-    )
-
-    return nextScheduler
-  } catch (error) {
-    await nextScheduler.terminate()
-    throw error
-  }
 }
 
 const attachStreamToVideo = async (stream: MediaStream) => {
@@ -154,53 +70,16 @@ const attachStreamToVideo = async (stream: MediaStream) => {
 
   video.srcObject = stream
   await video.play()
-  console.log('[Monitor] 비디오 재생 시작')
+  logger.log('비디오 재생 시작')
 }
 
-const prepareImageForOCR = (
-  sourceCanvas: HTMLCanvasElement,
-  sourceCtx: CanvasRenderingContext2D,
-) => {
-  const { width, height } = sourceCanvas
-
-  grayscaleCanvas.width = width
-  grayscaleCanvas.height = height
-
-  const imageData = sourceCtx.getImageData(0, 0, width, height)
-  const grayscaleData = grayscaleCtx.createImageData(width, height)
-
-  const { contrast, brightness, gamma, threshold } = IMAGE_FILTER_OPTIONS
-
-  for (let i = 0; i < imageData.data.length; i += 4) {
-    const r = imageData.data[i]
-    const g = imageData.data[i + 1]
-    const b = imageData.data[i + 2]
-    const alpha = imageData.data[i + 3]
-
-    // standard luminance weights
-    const grayscale = 0.299 * r + 0.587 * g + 0.114 * b
-    const normalized = grayscale / 255
-    const gammaCorrected = Math.pow(normalized, gamma)
-    let value = gammaCorrected * 255
-
-    value = (value - 128) * contrast + 128
-    value *= brightness
-
-    let clamped = Math.max(0, Math.min(255, value))
-
-    if (typeof threshold === 'number') {
-      clamped = clamped >= threshold ? 255 : 0
-    }
-
-    grayscaleData.data[i] = clamped
-    grayscaleData.data[i + 1] = clamped
-    grayscaleData.data[i + 2] = clamped
-    grayscaleData.data[i + 3] = alpha
-  }
-
-  grayscaleCtx.putImageData(grayscaleData, 0, 0)
-
-  return grayscaleCanvas.toDataURL('image/png')
+export const prepareImageForOCR = async (input: ImageLike) => {
+  let dataURL: string
+  dataURL = await ImageProcessor.upscale(input).then(({ dataURL }) => dataURL)
+  dataURL = await ImageProcessor.isolateTextColors(dataURL).then(
+    ({ dataURL }) => dataURL,
+  )
+  return dataURL
 }
 
 const detachStreamFromVideo = () => {
@@ -215,17 +94,17 @@ const detachStreamFromVideo = () => {
 
   video.pause()
   video.srcObject = null
-  console.log('[Monitor] 비디오 스트림 정리 완료')
+  logger.log('비디오 스트림 정리 완료')
 }
 
 const cleanupMonitoring = async () => {
   if (captureTimeoutId !== null) {
-    console.log('[Monitor] 캡처 타이머 중지')
+    logger.log('캡처 타이머 중지')
     clearTimeout(captureTimeoutId)
     captureTimeoutId = null
   }
 
-  await cleanupOCR()
+  await coordsParser.dispose()
 
   detachStreamFromVideo()
 
@@ -237,7 +116,7 @@ const cleanupMonitoring = async () => {
 
 const startMonitoring = async () => {
   if (isMonitoringStarting || isMonitoringActive || captureTimeoutId !== null) {
-    console.warn('[Monitor] 이미 모니터링 시작이 진행 중이거나 활성 상태입니다')
+    logger.log('이미 모니터링 시작이 진행 중이거나 활성 상태입니다')
     return
   }
 
@@ -247,78 +126,61 @@ const startMonitoring = async () => {
     isMonitoringStarting = true
     /** 시작 전 상태 초기화 */
     isCaptureInProgress = false
-    console.log('[Monitor] 모니터링 시작 시도')
+    logger.log('모니터링 시작 시도')
     currentStream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
     })
-    console.log('[Monitor] 화면 공유 스트림 획득')
+    logger.log('화면 공유 스트림 획득')
 
     await attachStreamToVideo(currentStream)
 
-    await ensureOCRReady()
+    await coordsParser.ensureScheduler()
 
     setMonitoringState(true)
     scheduleNextCapture(0)
-    console.log('[Monitor] 캡처 타이머 시작')
+    logger.log('캡처 타이머 시작')
 
     isMonitoringStarting = false
   } catch (error) {
-    console.error('[Monitor] 모니터링 시작 실패', error)
+    logger.error('모니터링 시작 실패', error)
 
     detachStreamFromVideo()
 
-    await cleanupOCR()
+    await coordsParser.dispose()
     setMonitoringState(false)
     isMonitoringStarting = false
     /** 실패 시에도 캡처 상태 초기화 */
     isCaptureInProgress = false
-    console.log('[Monitor] 모니터링 시작 실패로 리소스 정리 완료')
+    logger.log('모니터링 시작 실패로 리소스 정리 완료')
   }
 }
 
 const stopMonitoring = async () => {
   if (!isMonitoringActive && !video.srcObject) return
 
-  console.log('[Monitor] 모니터링 중지 요청')
+  logger.log('모니터링 중지 요청')
   setMonitoringState(false)
   await cleanupMonitoring()
   isMonitoringStarting = false
 }
 
 const captureScreen = async () => {
-  if (!scheduler) {
-    console.warn('[Monitor] 스케줄러가 준비되지 않아 캡처를 건너뜀')
-    return
-  }
-
   if (isCaptureInProgress) {
-    console.warn('[Monitor] 이전 캡처가 아직 완료되지 않아 건너뜀')
+    logger.log('이전 캡처가 아직 완료되지 않아 건너뜀')
     return
   }
 
   isCaptureInProgress = true
 
-  console.log('[Monitor] 화면 캡처 시작')
+  logger.log('화면 캡처 시작')
 
   try {
-    const x = (video.videoWidth / 4) * 3
-    const y = 0
-    const width = video.videoWidth - x
-    const height = video.videoHeight - (video.videoHeight / 4) * 3
-
-    captureCanvas.width = width
-    captureCanvas.height = height
-
-    captureCtx.imageSmoothingEnabled = false
-    captureCtx.clearRect(0, 0, width, height)
-    captureCtx.drawImage(video, x, y, width, height, 0, 0, width, height)
-
-    const imageData = prepareImageForOCR(captureCanvas, captureCtx)
-
-    const coordinates = await parseCoordinates(scheduler, imageData)
+    const img = await ImageProcessor.extractTopRightRegion(video)
+    const dataURL = await prepareImageForOCR(img.dataURL)
+    const coordinates = await parseCoordinates(dataURL)
 
     moveMap(coordinates)
-    console.log('[Monitor] 좌표 파싱 결과', coordinates)
+    logger.log('좌표 파싱 결과', coordinates)
   } finally {
     isCaptureInProgress = false
   }
@@ -332,7 +194,7 @@ const runCaptureLoop = async (): Promise<void> => {
   try {
     await captureScreen()
   } catch (error) {
-    console.error('[Monitor] 캡처 루프 실행 중 오류', error)
+    logger.error('캡처 루프 실행 중 오류', error)
   } finally {
     const elapsed = performance.now() - startTime
 
@@ -356,84 +218,10 @@ function scheduleNextCapture(delay: number) {
   }, delay)
 }
 
-const parseCoordinates = async (
-  activeScheduler: ReturnType<typeof createScheduler>,
-  imageData: string,
-) => {
-  console.log('[Monitor] OCR 파싱 시작')
-  const originalImg = new Image()
+export const parseCoordinates = async (imageURL: string) => {
+  logger.log('OCR 파싱 시작')
 
-  await new Promise<void>((resolve) => {
-    originalImg.src = imageData
-    originalImg.onload = () => {
-      resolve()
-    }
-  })
-
-  upscaleCanvas.width = originalImg.naturalWidth * OCR_UPSCALE_FACTOR
-  upscaleCanvas.height = originalImg.naturalHeight * OCR_UPSCALE_FACTOR
-
-  upscaleCtx.imageSmoothingEnabled = true
-  upscaleCtx.imageSmoothingQuality = 'high'
-  upscaleCtx.clearRect(0, 0, upscaleCanvas.width, upscaleCanvas.height)
-
-  upscaleCtx.drawImage(
-    originalImg,
-    0,
-    0,
-    originalImg.naturalWidth,
-    originalImg.naturalHeight,
-    0,
-    0,
-    upscaleCanvas.width,
-    upscaleCanvas.height,
-  )
-
-  const upscaledImageData = upscaleCanvas.toDataURL('image/png')
-
-  const result = await activeScheduler.addJob('recognize', upscaledImageData)
-  console.log('[Monitor] OCR 결과 텍스트', result.data.text)
-
-  const parts =
-    result.data.text
-      .split('\n')
-      .map((line) => line.trim().split(' '))
-      .flat() ?? []
-  const coordinates =
-    parts.find((part) => /[0-9]+[SN]\/[0-9]+[EW]/.test(part)) ?? null
-
-  return coordinates
-}
-
-const parseCoordinateString = (
-  coordinates: string,
-): ParsedCoordinates | null => {
-  const [rawY, rawX] = coordinates.split('/')
-  if (!rawY || !rawX) return null
-
-  const parsePart = (part: string) => {
-    const numericPart = part.replace(/[^\d]/g, '')
-    const unitPart = part.replace(/[\d]/g, '').toUpperCase()
-
-    if (!numericPart || !unitPart) return null
-
-    return {
-      value: getAdjustedInputValue(numericPart),
-      unit: unitPart,
-    }
-  }
-
-  const yPart = parsePart(rawY)
-  const xPart = parsePart(rawX)
-
-  if (!yPart || !xPart) return null
-
-  return {
-    yValue: yPart.value,
-    yUnit: yPart.unit,
-    xValue: xPart.value,
-    xUnit: xPart.unit,
-  }
+  return await coordsParser.recognizeCoordinates(imageURL)
 }
 
 const isWithinCoordinateTolerance = (
@@ -462,7 +250,7 @@ const submitCoordinates = (parsedCoordinates: ParsedCoordinates) => {
     (form?.querySelector('button[type="submit"]') as HTMLButtonElement) || null
 
   if (!form || !yInput || !yUnit || !xInput || !xunit || !submitButton) {
-    console.warn('[Monitor] 좌표 제출 요소를 찾지 못해 입력을 건너뜀')
+    logger.log('좌표 제출 요소를 찾지 못해 입력을 건너뜀')
     return false
   }
 
@@ -481,15 +269,8 @@ const submitCoordinates = (parsedCoordinates: ParsedCoordinates) => {
 /**
  * @param coordinates ex) 37N/127E
  */
-const moveMap = (coordinates: string | null) => {
-  if (!coordinates) return
-
-  const parsedCoordinates = parseCoordinateString(coordinates.trim())
-
-  if (!parsedCoordinates) {
-    console.warn('[Monitor] 좌표 문자열 파싱 실패', coordinates)
-    return
-  }
+const moveMap = (parsedCoordinates: ParsedCoordinates | null) => {
+  if (!parsedCoordinates) return
 
   if (!lastSubmittedCoordinates) {
     submitCoordinates(parsedCoordinates)
@@ -521,14 +302,14 @@ const moveMap = (coordinates: string | null) => {
       }
 
   if (!isContinuingOutlier) {
-    console.log('[Monitor] 원거리 좌표 후보 감지', parsedCoordinates)
+    logger.log('원거리 좌표 후보 감지', parsedCoordinates)
   }
 
   pendingOutlierCoordinates = nextOutlierCandidate
 
   if (nextOutlierCandidate.count >= REMOTE_COORDINATE_CONFIRMATION_COUNT) {
     if (submitCoordinates(nextOutlierCandidate.coordinates)) {
-      console.log('[Monitor] 원거리 좌표 확정으로 지도 이동', {
+      logger.log('원거리 좌표 확정으로 지도 이동', {
         coordinates: nextOutlierCandidate.coordinates,
         count: nextOutlierCandidate.count,
       })
@@ -538,39 +319,22 @@ const moveMap = (coordinates: string | null) => {
   }
 
   if (nextOutlierCandidate.count > 1) {
-    console.log('[Monitor] 원거리 좌표 후보 반복 감지', {
+    logger.log('원거리 좌표 후보 반복 감지', {
       count: nextOutlierCandidate.count,
       coordinates: nextOutlierCandidate.coordinates,
     })
   }
 }
 
-const getAdjustedInputValue = (input: string): number => {
-  const arr = [
-    Number(input.slice(-3)),
-    Number(input.slice(-2)),
-    Number(input.slice(-4, -1)),
-    Number(input.slice(-3, -1)),
-  ].sort()
-
-  while (arr.length > 0) {
-    const value = arr.pop()
-
-    if (!!value && value < 120) return value
-  }
-
-  return 0
-}
-
-chrome.runtime.onMessage.addListener((payload: Action) => {
+chrome?.runtime?.onMessage.addListener((payload: Action) => {
   switch (payload.type) {
     case 'start-monitoring': {
-      console.log('[Monitor] 메시지 수신: start-monitoring')
+      logger.log('메시지 수신: start-monitoring')
       startMonitoring()
       break
     }
     case 'stop-monitoring': {
-      console.log('[Monitor] 메시지 수신: stop-monitoring')
+      logger.log('메시지 수신: stop-monitoring')
       stopMonitoring()
       break
     }
