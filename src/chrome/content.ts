@@ -3,11 +3,11 @@ import Tesseract, { createScheduler, type WorkerParams } from 'tesseract.js'
 
 const video = document.createElement('video')
 let captureTimeoutId: ReturnType<typeof setTimeout> | null = null
-let scheduler: ReturnType<typeof createScheduler> | null = null
+export let scheduler: ReturnType<typeof createScheduler> | null = null
 let ocrInitializationPromise: Promise<void> | null = null
 
-const captureCanvas = document.createElement('canvas')
-const captureCtx = captureCanvas.getContext('2d')!
+export const captureCanvas = document.createElement('canvas')
+export const captureCtx = captureCanvas.getContext('2d')!
 const upscaleCanvas = document.createElement('canvas')
 const upscaleCtx = upscaleCanvas.getContext('2d')!
 const grayscaleCanvas = document.createElement('canvas')
@@ -83,7 +83,7 @@ const handleTrackEnded = () => {
   stopMonitoring()
 }
 
-const ensureOCRReady = async () => {
+export const ensureOCRReady = async () => {
   if (scheduler) {
     console.log('[Monitor] OCR 이미 준비 완료 상태')
     return
@@ -157,7 +157,7 @@ const attachStreamToVideo = async (stream: MediaStream) => {
   console.log('[Monitor] 비디오 재생 시작')
 }
 
-const prepareImageForOCR = (
+export const prepareImageForOCR = (
   sourceCanvas: HTMLCanvasElement,
   sourceCtx: CanvasRenderingContext2D,
 ) => {
@@ -356,7 +356,7 @@ function scheduleNextCapture(delay: number) {
   }, delay)
 }
 
-const parseCoordinates = async (
+export const parseCoordinates = async (
   activeScheduler: ReturnType<typeof createScheduler>,
   imageData: string,
 ) => {
@@ -405,7 +405,7 @@ const parseCoordinates = async (
   return coordinates
 }
 
-const parseCoordinateString = (
+export const parseCoordinateString = (
   coordinates: string,
 ): ParsedCoordinates | null => {
   const [rawY, rawX] = coordinates.split('/')
@@ -562,7 +562,7 @@ const getAdjustedInputValue = (input: string): number => {
   return 0
 }
 
-chrome.runtime.onMessage.addListener((payload: Action) => {
+chrome?.runtime?.onMessage.addListener((payload: Action) => {
   switch (payload.type) {
     case 'start-monitoring': {
       console.log('[Monitor] 메시지 수신: start-monitoring')
