@@ -97,7 +97,7 @@ export class ImageProcessor {
       canvas.height,
     )
 
-    const imageData = ctx.getImageData(0, 0, img.width, img.height)
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
     const dataURL = canvas.toDataURL()
 
     canvas.remove()
