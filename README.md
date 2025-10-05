@@ -1,8 +1,8 @@
 # Vinter Map Live
 
-<p align="center">
-  <img src="./public/icons/icon.svg" alt="Vinter Map Live 아이콘" width="96" height="96" />
-</p>
+| ON | OFF |
+| - | - |
+| <img src="./public/icons/icon-active@128w.png" alt="Vinter Map Live 아이콘" width="96" height="96" /> | <img src="./public/icons/icon@128w.png" alt="Vinter Map Live 아이콘" width="96" height="96" /> |
 
 ## 소개
 
