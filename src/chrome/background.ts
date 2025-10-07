@@ -42,3 +42,7 @@ chrome.runtime.onMessage.addListener((payload: Action) => {
 
   return true
 })
+
+chrome.runtime.onUpdateAvailable.addListener(() => {
+  chrome.runtime.reload()
+})
