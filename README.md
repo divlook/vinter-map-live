@@ -43,11 +43,20 @@ https://chromewebstore.google.com/detail/ackicfohignlljaglffhkhgbofmpnibf
 
 ## 사용 방법
 
-1. https://vinternote.com/map 페이지를 열어 둡니다.
-2. 크롬 툴바에서 Vinter Map Live 아이콘을 클릭해 모니터링을 시작합니다.
+[준비]
+1. Chrome이나 Edge에서 Vinter Map Live를 설치합니다.
+2. Longvinter 게임을 실행합니다.
+3. 위성 통신기 아이템을 장착합니다. (우측 상단에 좌표가 표시되는지 확인하세요.)
+4. https://vinternote.com/map 페이지에 접속합니다.
+
+[실행]
+1. Chrome 또는 Edge의 툴바에서 확장 프로그램을 찾습니다.
+2. Vinter Map Live 아이콘을 클릭해 모니터링을 시작합니다.
 3. 화면 공유 대상에서 Longvinter 게임 창을 선택합니다.
-4. 게임 내 좌표가 업데이트되면 확장 프로그램이 좌표를 읽고 지도 위치를 자동으로 이동합니다.
-5. 다시 아이콘을 클릭하면 모니터링이 종료되고 화면 공유도 해제됩니다.
+4. 게임 내 좌표가 업데이트되면 확장 프로그램이 좌표를 읽고 vinternote 지도의 위치를 자동으로 갱신합니다.
+
+[종료]
+- 아이콘을 다시 클릭하거나 화면 공유를 해제하면 모니터링이 종료됩니다.
 
 ## 개발 및 빌드 스크립트
 
