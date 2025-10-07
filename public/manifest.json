@@ -2,8 +2,9 @@
   "$schema": "https://json.schemastore.org/chrome-manifest",
   "action": {
     "default_icon": {
-      "16": "icons/icon16.png",
-      "32": "icons/icon32.png"
+      "16": "icons/icon@16w.png",
+      "24": "icons/icon@24w.png",
+      "32": "icons/icon@32w.png"
     },
     "default_title": "Vinter Map Live: 좌표 자동 추적"
   },
@@ -23,9 +24,10 @@
   ],
   "description": "롱빈터(Longvinter) 지도의 좌표를 자동으로 읽어 현재 위치를 맞춰 주는 크롬 확장 프로그램입니다.",
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
+    "16": "icons/icon-active@16w.png",
+    "48": "icons/icon-active@48w.png",
+    "128": "icons/icon-active@128w.png",
+    "256": "icons/icon-active@256w.png"
   },
   "manifest_version": 3,
   "name": "Vinter Map Live",
