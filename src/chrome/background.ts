@@ -44,7 +44,5 @@ chrome.runtime.onMessage.addListener((payload: Action) => {
 })
 
 chrome.runtime.onUpdateAvailable.addListener(() => {
-  if (!isMonitoring) {
-    chrome.runtime.reload()
-  }
+  chrome.runtime.reload()
 })
