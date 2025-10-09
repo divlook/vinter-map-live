@@ -20,8 +20,10 @@
 
 ## 사용 방법
 
+![user manual](attachments/user_manual_1280x800.jpg)
+
 [준비]
-1. Chrome이나 Edge에서 Vinter Map Live를 설치합니다.
+1. Chrome이나 Edge에서 Vinter Map Live를 설치합니다. ([웹 스토어에서 받기](https://chromewebstore.google.com/detail/ackicfohignlljaglffhkhgbofmpnibf))
 2. Longvinter 게임을 실행합니다.
 3. 위성 통신기 아이템을 장착합니다. (우측 상단에 좌표가 표시되는지 확인하세요.)
 4. https://vinternote.com/map 페이지에 접속합니다.
@@ -39,7 +41,7 @@
 
 ### 크롬 웹 스토어 (권장)
 
-https://chromewebstore.google.com/detail/ackicfohignlljaglffhkhgbofmpnibf
+👉 https://chromewebstore.google.com/detail/ackicfohignlljaglffhkhgbofmpnibf
 
 ### 개발자 모드로 수동 설치
 
